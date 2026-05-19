@@ -1,0 +1,8 @@
+interface:
+  display_name: "Docs to Skill"
+  short_description: "Turn docs pages into reusable skills"
+  brand_color: "#2563EB"
+  default_prompt: "Use $docs-to-skill to turn this documentation URL into a reusable local skill."
+
+policy:
+  allow_implicit_invocation: true

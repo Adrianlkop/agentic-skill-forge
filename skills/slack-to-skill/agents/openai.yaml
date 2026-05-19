@@ -1,0 +1,8 @@
+interface:
+  display_name: "Slack to Skill"
+  short_description: "Extract troubleshooting knowledge"
+  brand_color: "#7C3AED"
+  default_prompt: "Use $slack-to-skill to turn this Slack export into a troubleshooting knowledge base skill."
+
+policy:
+  allow_implicit_invocation: true

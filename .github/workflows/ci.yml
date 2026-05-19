@@ -1,0 +1,78 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Compile Python scripts
+        run: |
+          python -m py_compile \
+            skills/docs-to-skill/scripts/scrape.py \
+            skills/repo-to-skill/scripts/map_repo.py \
+            skills/slack-to-skill/scripts/parse_slack.py
+
+      - name: Validate install.sh syntax
+        run: bash -n install.sh
+
+      - name: Test Unix installer
+        run: |
+          export CLAUDE_SKILLS_DIR="$RUNNER_TEMP/claude-skills"
+          export CODEX_SKILLS_DIR="$RUNNER_TEMP/codex-skills"
+          bash install.sh
+          test -f "$CLAUDE_SKILLS_DIR/docs-to-skill/SKILL.md"
+          test -f "$CLAUDE_SKILLS_DIR/repo-to-skill/SKILL.md"
+          test -f "$CLAUDE_SKILLS_DIR/slack-to-skill/SKILL.md"
+          test -f "$CODEX_SKILLS_DIR/docs-to-skill/SKILL.md"
+          test -f "$CODEX_SKILLS_DIR/repo-to-skill/SKILL.md"
+          test -f "$CODEX_SKILLS_DIR/slack-to-skill/SKILL.md"
+
+      - name: Test repo mapper
+        run: |
+          python skills/repo-to-skill/scripts/map_repo.py . --out-dir "$RUNNER_TEMP/repo-test" --max-files 100
+          test -f "$RUNNER_TEMP/repo-test/repo_tree.txt"
+          test -f "$RUNNER_TEMP/repo-test/metadata.json"
+
+      - name: Test Slack parser
+        run: |
+          mkdir -p "$RUNNER_TEMP/slack-sample"
+          printf '%s\n' '[{"type":"message","user":"U123","user_profile":{"real_name":"Ada"},"text":"Error E_CONN_RESET happens when the API token expires. Fix: rotate the token and restart the worker.","ts":"1710000000.000000"},{"type":"message","subtype":"bot_message","text":"noise","ts":"1710000001.000000"}]' > "$RUNNER_TEMP/slack-sample/engineering.json"
+          python skills/slack-to-skill/scripts/parse_slack.py "$RUNNER_TEMP/slack-sample/engineering.json" --out-dir "$RUNNER_TEMP/slack-test"
+          test -f "$RUNNER_TEMP/slack-test/slack_threads.txt"
+          grep -q "E_CONN_RESET" "$RUNNER_TEMP/slack-test/slack_threads.txt"
+
+      - name: Test docs scraper
+        run: |
+          mkdir -p "$RUNNER_TEMP/site"
+          cat > "$RUNNER_TEMP/site/index.html" <<'HTML'
+          <html>
+            <head><title>Demo Docs</title></head>
+            <body>
+              <nav>Skip this navigation</nav>
+              <main>
+                <h1>Demo API</h1>
+                <p>Use createClient with API_KEY.</p>
+                <pre><code>createClient({ apiKey: process.env.API_KEY })</code></pre>
+              </main>
+            </body>
+          </html>
+          HTML
+          python -m http.server 8765 --bind 127.0.0.1 --directory "$RUNNER_TEMP/site" &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          sleep 2
+          python skills/docs-to-skill/scripts/scrape.py http://127.0.0.1:8765/index.html --out-dir "$RUNNER_TEMP/docs-test"
+          test -f "$RUNNER_TEMP/docs-test/raw_docs.md"
+          grep -q "createClient" "$RUNNER_TEMP/docs-test/raw_docs.md"

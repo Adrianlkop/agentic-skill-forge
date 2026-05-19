@@ -1,0 +1,8 @@
+interface:
+  display_name: "Repo to Skill"
+  short_description: "Capture repo architecture as a skill"
+  brand_color: "#059669"
+  default_prompt: "Use $repo-to-skill to turn this repository into a reusable architecture and conventions skill."
+
+policy:
+  allow_implicit_invocation: true
